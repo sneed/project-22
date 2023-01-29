@@ -788,3 +788,319 @@ status:
 Copy and paste the load balancer’s address to the browser, and you will access the Nginx service
 
 ![Nginx service](images/nginx-service2.png)
+
+
+## USING DEPLOYMENT CONTROLLERS
+
+Do not Use Replication Controllers – Use Deployment Controllers Instead
+Kubernetes is loaded with a lot of features, and with its vibrant open source community, these features are constantly evolving and adding up.
+
+Previously, you have seen the improvements from **ReplicationControllers (RC)**, to **ReplicaSets (RS)**. In this section you will see another K8s object which is highly recommended over Replication objects (RC and RS).
+
+A [**Deployment**](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/) is another layer above ReplicaSets and Pods, newer and more advanced level concept than ReplicaSets. It manages the deployment of ReplicaSets and allows for easy updating of a ReplicaSet as well as the ability to roll back to a previous version of deployment. It is declarative and can be used for rolling updates of micro-services, ensuring there is no downtime.
+
+Officially, it is highly recommended to use **Deployments** to manage replica sets rather than using replica sets directly.
+
+Let us see Deployment in action.
+
+1. Delete the ReplicaSet
+
+`kubectl delete rs nginx-rs`
+
+
+2. Understand the layout of the <mark>deployment.yaml</mark> manifest below. Lets go through the 3 separated sections:
+
+````
+# Section 1 - This is the part that defines the deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+name: nginx-deployment
+labels:
+tier: frontend
+
+# Section 2 - This is the Replica set layer controlled by the deployment
+spec:
+replicas: 3
+selector:
+matchLabels:
+tier: frontend
+
+# Section 3 - This is the Pod section controlled by the deployment and selected by the replica set in section 2.
+template:
+metadata:
+labels:
+tier: frontend
+spec:
+containers:
+- name: nginx
+image: nginx:latest
+ports:
+- containerPort: 80
+
+````
+
+3. Putting them altogether
+
+````
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+name: nginx-deployment
+labels:
+tier: frontend
+spec:
+replicas: 3
+selector:
+matchLabels:
+tier: frontend
+template:
+metadata:
+labels:
+tier: frontend
+spec:
+containers:
+- name: nginx
+image: nginx:latest
+ports:
+- containerPort: 8
+
+````
+
+`kubectl apply -f deployment.yaml`
+
+Run commands to get the following
+
+1. Get the Deployment
+
+````
+NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+nginx-deployment   3/3     3            3           39s
+
+````
+
+2. Get the ReplicaSet
+
+````
+NAME                          DESIRED   CURRENT   READY   AGE
+nginx-deployment-56466d4948   3         3         3       24s
+
+````
+
+3. Get the Pods
+
+````
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-56466d4948-5zdbx   1/1     Running   0          12s
+nginx-deployment-56466d4948-tg9j8   1/1     Running   0          12s
+nginx-deployment-56466d4948-ttn5t   1/1     Running   0          12s
+
+````
+
+4. Scale the replicas in the Deployment to 15 Pods
+
+````
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-56466d4948-58nqx   1/1     Running   0          6s
+nginx-deployment-56466d4948-5z4c2   1/1     Running   0          6s
+nginx-deployment-56466d4948-5zdbx   1/1     Running   0          17m
+nginx-deployment-56466d4948-78j9c   1/1     Running   0          6s
+nginx-deployment-56466d4948-gj4fd   1/1     Running   0          6s
+nginx-deployment-56466d4948-gsrpz   1/1     Running   0          6s
+nginx-deployment-56466d4948-kg9hp   1/1     Running   0          6s
+nginx-deployment-56466d4948-qs29b   1/1     Running   0          6s
+nginx-deployment-56466d4948-sfft6   1/1     Running   0          6s
+nginx-deployment-56466d4948-sg4np   1/1     Running   0          6s
+nginx-deployment-56466d4948-tg9j8   1/1     Running   0          17m
+nginx-deployment-56466d4948-ttn5t   1/1     Running   0          17m
+nginx-deployment-56466d4948-vfmjx   1/1     Running   0          6s
+nginx-deployment-56466d4948-vlgbs   1/1     Running   0          6s
+nginx-deployment-56466d4948-xctfh   1/1     Running   0          6s
+
+````
+
+5. Exec into one of the Pod’s container to run Linux commands
+
+`kubectl exec -it nginx-deployment-56466d4948-78j9c bash`
+
+List the files and folders in the Nginx directory
+
+````
+root@nginx-deployment-56466d4948-78j9c:/# ls -ltr /etc/nginx/
+total 24
+-rw-r--r-- 1 root root  664 May 25 12:28 uwsgi_params
+-rw-r--r-- 1 root root  636 May 25 12:28 scgi_params
+-rw-r--r-- 1 root root 5290 May 25 12:28 mime.types
+-rw-r--r-- 1 root root 1007 May 25 12:28 fastcgi_params
+-rw-r--r-- 1 root root  648 May 25 13:01 nginx.conf
+lrwxrwxrwx 1 root root   22 May 25 13:01 modules -> /usr/lib/nginx/modules
+drwxr-xr-x 1 root root   26 Jun 18 22:08 conf.d
+
+````
+
+Check the content of the default Nginx configuration file
+
+````
+root@nginx-deployment-56466d4948-78j9c:/# cat  /etc/nginx/conf.d/default.conf
+server {
+listen       80;
+listen  [::]:80;
+server_name  localhost;
+
+    #access_log  /var/log/nginx/host.access.log  main;
+
+    location / {
+        root   /usr/share/nginx/html;
+        index  index.html index.htm;
+    }
+
+    #error_page  404              /404.html;
+
+    # redirect server error pages to the static page /50x.html
+    #
+    error_page   500 502 503 504  /50x.html;
+    location = /50x.html {
+        root   /usr/share/nginx/html;
+    }
+
+    # proxy the PHP scripts to Apache listening on 127.0.0.1:80
+    #
+    #location ~ \.php$ {
+    #    proxy_pass   http://127.0.0.1;
+    #}
+
+    # pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+    #
+    #location ~ \.php$ {
+    #    root           html;
+    #    fastcgi_pass   127.0.0.1:9000;
+    #    fastcgi_index  index.php;
+    #    fastcgi_param  SCRIPT_FILENAME  /scripts$fastcgi_script_name;
+    #    include        fastcgi_params;
+    #}
+
+    # deny access to .htaccess files, if Apache's document root
+    # concurs with nginx's one
+    #
+    #location ~ /\.ht {
+    #    deny  all;
+    #}
+}
+
+````
+Now, as we have got acquainted with most common Kubernetes workloads to deploy applications:
+
+![Kubernetes Workloads](images/kubernetes-workloads.png)
+
+it is time to explore how Kubernetes is able to manage persistent data.
+
+
+##  PERSISTING DATA FOR PODS
+
+Deployments are stateless by design. Hence, any data stored inside the Pod’s container does not persist when the Pod dies.
+
+If you were to update the content of the <mark>index.html</mark> file inside the container, and the Pod dies, that content will not be lost since a new Pod will replace the dead one.
+
+Let us try that:
+
+1. Scale the Pods down to 1 replica.
+
+````
+NAME                                READY   STATUS        RESTARTS   AGE
+nginx-deployment-56466d4948-58nqx   0/1     Terminating   0          45m
+nginx-deployment-56466d4948-5z4c2   1/1     Terminating   0          45m
+nginx-deployment-56466d4948-5zdbx   0/1     Terminating   0          62m
+nginx-deployment-56466d4948-78j9c   1/1     Terminating   0          45m
+nginx-deployment-56466d4948-gj4fd   1/1     Terminating   0          45m
+nginx-deployment-56466d4948-gsrpz   0/1     Terminating   0          45m
+nginx-deployment-56466d4948-kg9hp   1/1     Terminating   0          45m
+nginx-deployment-56466d4948-qs29b   0/1     Terminating   0          45m
+nginx-deployment-56466d4948-sfft6   0/1     Terminating   0          45m
+nginx-deployment-56466d4948-sg4np   0/1     Terminating   0          45m
+nginx-deployment-56466d4948-tg9j8   1/1     Running       0          62m
+nginx-deployment-56466d4948-ttn5t   1/1     Terminating   0          62m
+nginx-deployment-56466d4948-vfmjx   0/1     Terminating   0          45m
+nginx-deployment-56466d4948-vlgbs   1/1     Terminating   0          45m
+nginx-deployment-56466d4948-xctfh   0/1     Terminating   0          45m
+
+````
+
+````
+NAME                                READY   STATUS    RESTARTS   AGE
+nginx-deployment-56466d4948-tg9j8   1/1     Running   0          64m
+
+````
+
+2. Exec into the running container (figure out the command yourself)
+
+3. Install <mark>nano</mark> so that you can edit the file
+
+````
+apt-get update
+apt-get install vim
+
+````
+
+4. Update the content of the file and add the code below <mark>/usr/share/nginx/html/index.html</mark>
+
+````
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to DAREY.IO!</title>
+<style>
+    body {
+        width: 35em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome to DAREY.IO!</h1>
+<p>I love experiencing Kubernetes</p>
+
+<p>Learning by doing is absolutely the best strategy at 
+<a href="https://darey.io/">www.darey.io</a>.<br/>
+for skills acquisition
+<a href="https://darey.io/">www.darey.io</a>.</p>
+
+<p><em>Thank you for learning from DAREY.IO</em></p>
+</body>
+</html>
+
+````
+
+5. Check the browser – You should see this
+
+
+6. Now, delete the only running Pod
+
+````
+kubectl delete po nginx-deployment-56466d4948-tg9j8
+pod "nginx-deployment-56466d4948-tg9j8" deleted
+
+````
+
+7. Refresh the web page – You will see that the content you saved in the container is no longer there. That is because Pods do not store data when they are being recreated – that is why they are called <mark>ephemeral</mark> or <mark>stateless</mark>. (But not to worry, we will address this with persistent volumes in the next project)
+
+![Nginx service](images/nginx-service2.png)
+
+Storage is a critical part of running containers, and Kubernetes offers some powerful primitives for managing it. **Dynamic volume provisioning**, a feature unique to Kubernetes, which allows storage volumes to be created on-demand. Without dynamic provisioning, DevOps engineers must manually make calls to the cloud or storage provider to create new storage volumes, and then create **PersistentVolume** objects to represent them in Kubernetes. 
+The dynamic provisioning feature eliminates the need for DevOps to pre-provision storage. Instead, it automatically provisions storage when it is requested by users.
+
+To make the data persist in case of a Pod’s failure, you will need to configure the Pod to use following objects:
+
+- [Persistent Volume](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) or <mark>pv</mark> – is a piece of storage in the cluster that has been provisioned by an administrator or dynamically provisioned using [Storage Classes.](https://kubernetes.io/docs/concepts/storage/storage-classes/)
+- [Persistent Volume Claim](https://kubernetes.io/docs/concepts/storage/persistent-volumes/#expanding-persistent-volumes-claims) or <mark>pvc</mark>. Persistent Volume Claim is simply a request for storage, hence the "claim" in its name.
+But where is it requesting this storage from?..
+
+In the next project,
+
+1. You will use Terraform to create a Kubernetes EKS cluster in AWS, and begin to use some powerful features such as **PV**, **PVCs**, **ConfigMaps**.
+2. You will also be introduced to packaging Kubernetes manifests using [Helm](https://helm.sh)
+3. Experience Dynamic provisioning of volumes to make your Pods stateful, using Kubernetes Statefulset
+4. Deploying applications into Kubernetes using Helm Charts
+5. And many more awesome technologies
+
+Keep it up!
